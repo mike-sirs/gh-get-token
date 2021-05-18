@@ -92,7 +92,7 @@ func readSecret(sc coreV1Types.SecretInterface, n string) *coreV1.Secret {
 	secret, err := sc.Get(context.TODO(), n, metaV1.GetOptions{})
 	if err != nil {
 		if err.Error() == fmt.Sprintf("secrets \"%s\" not found", n) {
-			fmt.Printf("Secret %s not found, create new one.", n)
+			fmt.Printf("Secret %s not found, creating a new one.", n)
 		} else {
 			panic(err.Error())
 		}
