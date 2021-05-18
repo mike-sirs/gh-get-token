@@ -152,8 +152,9 @@ func main() {
 	//Get github access token
 	switch aTkn := getAccToken(*installID, iTkn)["token"].(type) {
 	case string:
-		if readSecret(secretsClient, *secretname).StringData != nil {
+		if readSecret(secretsClient, *secretname).Data != nil {
 			updateSecret(secretsClient, aTkn, *namespace, *secretname)
+			fmt.Printf("Tokent was updated at %v", time.Now())
 			return
 		}
 		createSecret(secretsClient, aTkn, *namespace, *secretname)
