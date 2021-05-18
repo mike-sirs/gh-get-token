@@ -88,10 +88,7 @@ func initK8SClient(n string) {
 	secretsClient = clientset.CoreV1().Secrets(n)
 }
 
-func readSecret(sc coreV1Types.SecretInterface, n string) *coreV1.Secret {
-	ctx, cancelFn := context.WithTimeout(context.Background(), time.Minute*5)
-	defer cancelFn()
-
+func readSecret(ctx context.Context, sc coreV1Types.SecretInterface, n string) *coreV1.Secret {
 	secret, err := sc.Get(ctx, n, metaV1.GetOptions{})
 	if err != nil {
 		if err.Error() == fmt.Sprintf("secrets \"%s\" not found", n) {
@@ -159,7 +156,7 @@ func main() {
 	//Get github access token
 	switch aTkn := getAccToken(*installID, iTkn)["token"].(type) {
 	case string:
-		if readSecret(secretsClient, *secretname).Data != nil {
+		if readSecret(ctx, secretsClient, *secretname).Data != nil {
 			updateSecret(ctx, secretsClient, aTkn, *namespace, *secretname)
 			fmt.Printf("Tokent was updated at %v", time.Now())
 			return
