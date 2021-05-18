@@ -90,7 +90,13 @@ func initK8SClient(n string) {
 
 func readSecret(sc coreV1Types.SecretInterface, n string) *coreV1.Secret {
 	secret, err := sc.Get(context.TODO(), n, metaV1.GetOptions{})
-	errChk(err)
+	if err != nil {
+		if err.Error() == fmt.Sprintf("secrets \"%s\" not found", n) {
+			fmt.Printf("Secret %s not found, create new one.", n)
+		} else {
+			panic(err.Error())
+		}
+	}
 
 	return secret
 }
@@ -146,7 +152,7 @@ func main() {
 	//Get github access token
 	switch aTkn := getAccToken(*installID, iTkn)["token"].(type) {
 	case string:
-		if readSecret(secretsClient, *secretname) != nil {
+		if readSecret(secretsClient, *secretname).StringData != nil {
 			updateSecret(secretsClient, aTkn, *namespace, *secretname)
 			return
 		}
