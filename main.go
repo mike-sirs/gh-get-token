@@ -89,7 +89,10 @@ func initK8SClient(n string) {
 }
 
 func readSecret(sc coreV1Types.SecretInterface, n string) *coreV1.Secret {
-	secret, err := sc.Get(context.TODO(), n, metaV1.GetOptions{})
+	ctx, cancelFn := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancelFn()
+
+	secret, err := sc.Get(ctx, n, metaV1.GetOptions{})
 	if err != nil {
 		if err.Error() == fmt.Sprintf("secrets \"%s\" not found", n) {
 			fmt.Printf("Secret %s not found, creating a new one.", n)
@@ -101,7 +104,8 @@ func readSecret(sc coreV1Types.SecretInterface, n string) *coreV1.Secret {
 	return secret
 }
 
-func updateSecret(sc coreV1Types.SecretInterface, t, n, s string) {
+func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s string) {
+
 	secret := coreV1.Secret{
 		TypeMeta: metaV1.TypeMeta{
 			Kind:       "Secret",
@@ -117,11 +121,11 @@ func updateSecret(sc coreV1Types.SecretInterface, t, n, s string) {
 		Type: "Opaque",
 	}
 
-	_, err := sc.Update(context.TODO(), &secret, metaV1.UpdateOptions{FieldManager: "tokenGetter"})
+	_, err := sc.Update(ctx, &secret, metaV1.UpdateOptions{FieldManager: "tokenGetter"})
 	errChk(err)
 }
 
-func createSecret(sc coreV1Types.SecretInterface, t, n, s string) {
+func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s string) {
 	secret := coreV1.Secret{
 		TypeMeta: metaV1.TypeMeta{
 			Kind:       "Secret",
@@ -137,7 +141,7 @@ func createSecret(sc coreV1Types.SecretInterface, t, n, s string) {
 		Type: "Opaque",
 	}
 
-	_, err := sc.Create(context.TODO(), &secret, metaV1.CreateOptions{FieldManager: "tokenGetter"})
+	_, err := sc.Create(ctx, &secret, metaV1.CreateOptions{FieldManager: "tokenGetter"})
 	errChk(err)
 }
 
@@ -146,6 +150,9 @@ func main() {
 	// Init k8s in-cluster client
 	initK8SClient(*namespace)
 
+	ctx, cancelFn := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancelFn()
+
 	//Get github install token
 	iTkn, err := getInstToken(*pem, *appID, *ttl)
 	errChk(err)
@@ -153,11 +160,11 @@ func main() {
 	switch aTkn := getAccToken(*installID, iTkn)["token"].(type) {
 	case string:
 		if readSecret(secretsClient, *secretname).Data != nil {
-			updateSecret(secretsClient, aTkn, *namespace, *secretname)
+			updateSecret(ctx, secretsClient, aTkn, *namespace, *secretname)
 			fmt.Printf("Tokent was updated at %v", time.Now())
 			return
 		}
-		createSecret(secretsClient, aTkn, *namespace, *secretname)
+		createSecret(ctx, secretsClient, aTkn, *namespace, *secretname)
 	default:
 		fmt.Printf("Token expects to be a string type but received %T!\n", aTkn)
 	}
