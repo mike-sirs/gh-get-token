@@ -1,0 +1,59 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: secretadmin
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - create
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gha-token    
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: secretadmin
+subjects:
+- kind: ServiceAccount
+  name: gha-get-tokens
+  namespace: default  
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gha-get-tokens
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: gha-token-getter
+spec:
+  schedule: "*/50 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: gha-get-tokens
+          containers:
+          - name: gha-get-tokens
+            image: undead/gha_get_tokens:0.0.13
+            command: ["gha_get_token"]
+            args: ["-a", "12345", "-i", "123123123", "-k", "/tmp/gha/private-key.pem", "-n", "default", "-s", "gha-test-token"]
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+            - name: privat-key
+              mountPath: "/tmp/gha"
+              readOnly: true
+          restartPolicy: Never
+          volumes:
+          - name: privat-key
+            secret:
+              secretName: tekton-gha-pem          
