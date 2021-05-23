@@ -111,6 +111,9 @@ func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s s
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      s,
 			Namespace: n,
+			Annotations: map[string]string{
+				"tekton.dev/git-0": "https://github.com",
+			},
 		},
 		StringData: map[string]string{
 			"token": t,
@@ -131,6 +134,9 @@ func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s s
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      s,
 			Namespace: n,
+			Annotations: map[string]string{
+				"tekton.dev/git-0": "https://github.com",
+			},
 		},
 		StringData: map[string]string{
 			"token": t,
