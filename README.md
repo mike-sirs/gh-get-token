@@ -20,3 +20,4 @@ Flags:
 - "-n", default: "default" - "K8S secret namespace."
 - "-s", default: "" - "K8S secret name."
 - "-t", default: 600 -  "Key expiration time in seconds."
+- "-u", default: "token", "K8S token user name.")

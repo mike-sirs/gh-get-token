@@ -20,12 +20,13 @@ import (
 )
 
 var (
-	appID      = flag.String("a", "", "Github app ID.")
-	installID  = flag.Uint("i", 0, "Github app installation ID.")
-	pem        = flag.String("k", "", "Path to github app private key file.")
-	namespace  = flag.String("n", "default", "K8S secret namespace.")
-	secretname = flag.String("s", "", "K8S secret name.")
-	ttl        = flag.Int64("t", 600, "Key expiration time in seconds.")
+	appID         = flag.String("a", "", "Github app ID.")
+	installID     = flag.Uint("i", 0, "Github app installation ID.")
+	pem           = flag.String("k", "", "Path to github app private key file.")
+	namespace     = flag.String("n", "default", "K8S secret namespace.")
+	secretname    = flag.String("s", "", "K8S secret name.")
+	tokenUserName = flag.String("u", "token", "K8S token user name.")
+	ttl           = flag.Int64("t", 600, "Key expiration time in seconds.")
 
 	secretsClient coreV1Types.SecretInterface
 )
@@ -101,7 +102,7 @@ func readSecret(ctx context.Context, sc coreV1Types.SecretInterface, n string) *
 	return secret
 }
 
-func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s string) {
+func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n, s string) {
 
 	secret := coreV1.Secret{
 		TypeMeta: metaV1.TypeMeta{
@@ -116,7 +117,8 @@ func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s s
 			},
 		},
 		StringData: map[string]string{
-			"token": t,
+			"username": un,
+			"password": t,
 		},
 		Type: "Opaque",
 	}
@@ -125,7 +127,7 @@ func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s s
 	errChk(err)
 }
 
-func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s string) {
+func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n, s string) {
 	secret := coreV1.Secret{
 		TypeMeta: metaV1.TypeMeta{
 			Kind:       "Secret",
@@ -139,7 +141,8 @@ func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s s
 			},
 		},
 		StringData: map[string]string{
-			"token": t,
+			"username": un,
+			"password": t,
 		},
 		Type: "Opaque",
 	}
@@ -163,11 +166,11 @@ func main() {
 	switch aTkn := getAccToken(*installID, iTkn)["token"].(type) {
 	case string:
 		if readSecret(ctx, secretsClient, *secretname).Data != nil {
-			updateSecret(ctx, secretsClient, aTkn, *namespace, *secretname)
+			updateSecret(ctx, secretsClient, *tokenUserName, aTkn, *namespace, *secretname)
 			fmt.Printf("Tokent was updated at %v", time.Now())
 			return
 		}
-		createSecret(ctx, secretsClient, aTkn, *namespace, *secretname)
+		createSecret(ctx, secretsClient, *tokenUserName, aTkn, *namespace, *secretname)
 	default:
 		fmt.Printf("Token expects to be a string type but received %T!\n", aTkn)
 	}
