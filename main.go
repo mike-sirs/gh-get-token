@@ -120,7 +120,7 @@ func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n,
 			"username": un,
 			"password": t,
 		},
-		Type: "Opaque",
+		Type: "kubernetes.io/basic-auth",
 	}
 
 	_, err := sc.Update(ctx, &secret, metaV1.UpdateOptions{FieldManager: "tokenGetter"})
@@ -144,7 +144,7 @@ func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n,
 			"username": un,
 			"password": t,
 		},
-		Type: "Opaque",
+		Type: "kubernetes.io/basic-auth",
 	}
 
 	_, err := sc.Create(ctx, &secret, metaV1.CreateOptions{FieldManager: "tokenGetter"})
