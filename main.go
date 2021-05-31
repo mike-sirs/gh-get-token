@@ -19,6 +19,13 @@ import (
 	coreV1Types "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
+/*
+n  - namespace
+s  - secret
+t  - token
+un - username
+*/
+
 var (
 	appID         = flag.String("a", "", "Github app ID.")
 	installID     = flag.Uint("i", 0, "Github app installation ID.")
@@ -102,7 +109,7 @@ func readSecret(ctx context.Context, sc coreV1Types.SecretInterface, n string) *
 	return secret
 }
 
-func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n, s string) {
+func updateSecretBasicAuth(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n, s string) {
 
 	secret := coreV1.Secret{
 		TypeMeta: metaV1.TypeMeta{
@@ -127,7 +134,7 @@ func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n,
 	errChk(err)
 }
 
-func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n, s string) {
+func createSecretBasicAuth(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n, s string) {
 	secret := coreV1.Secret{
 		TypeMeta: metaV1.TypeMeta{
 			Kind:       "Secret",
@@ -151,6 +158,53 @@ func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, un, t, n,
 	errChk(err)
 }
 
+func updateSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s string) {
+
+	secret := coreV1.Secret{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      s,
+			Namespace: n,
+			Annotations: map[string]string{
+				"tekton.dev/git-0": "https://github.com",
+			},
+		},
+		StringData: map[string]string{
+			"token": t,
+		},
+		Type: "Opaque",
+	}
+
+	_, err := sc.Update(ctx, &secret, metaV1.UpdateOptions{FieldManager: "tokenGetter"})
+	errChk(err)
+}
+
+func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s string) {
+	secret := coreV1.Secret{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      s,
+			Namespace: n,
+			Annotations: map[string]string{
+				"tekton.dev/git-0": "https://github.com",
+			},
+		},
+		StringData: map[string]string{
+			"token": t,
+		},
+		Type: "Opaque",
+	}
+
+	_, err := sc.Create(ctx, &secret, metaV1.CreateOptions{FieldManager: "tokenGetter"})
+	errChk(err)
+}
+
 func main() {
 	flag.Parse()
 	// Init k8s in-cluster client
@@ -165,12 +219,19 @@ func main() {
 	//Get github access token
 	switch aTkn := getAccToken(*installID, iTkn)["token"].(type) {
 	case string:
-		if readSecret(ctx, secretsClient, *secretname).Data != nil {
-			updateSecret(ctx, secretsClient, *tokenUserName, aTkn, *namespace, *secretname)
-			fmt.Printf("Tokent was updated at %v", time.Now())
-			return
+		if readSecret(ctx, secretsClient, *secretname+"-opaque").Data != nil {
+			updateSecret(ctx, secretsClient, aTkn, *namespace, *secretname+"-opaque")
+			fmt.Printf("Token was updated at %v\n", time.Now())
+		} else {
+			createSecret(ctx, secretsClient, aTkn, *namespace, *secretname+"-opaque")
 		}
-		createSecret(ctx, secretsClient, *tokenUserName, aTkn, *namespace, *secretname)
+
+		if readSecret(ctx, secretsClient, *secretname).Data != nil {
+			updateSecretBasicAuth(ctx, secretsClient, *tokenUserName, aTkn, *namespace, *secretname)
+			fmt.Printf("Token for basic auth was updated at %v\n", time.Now())
+		} else {
+			createSecretBasicAuth(ctx, secretsClient, *tokenUserName, aTkn, *namespace, *secretname)
+		}
 	default:
 		fmt.Printf("Token expects to be a string type but received %T!\n", aTkn)
 	}
