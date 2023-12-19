@@ -205,6 +205,53 @@ func createSecret(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s s
 	errChk(err)
 }
 
+func updateSecretGhcr(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s string) {
+
+	secret := coreV1.Secret{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      s,
+			Namespace: n,
+			Annotations: map[string]string{
+				"tekton.dev/docker-ghcr": "ghcr.io",
+			},
+		},
+		StringData: map[string]string{
+			".dockerconfigjson": fmt.Sprintf(`{"auths":{"ghcr.io":{"auth": "token:%s"}}}`, t),
+		},
+		Type: "kubernetes.io/dockerconfigjson",
+	}
+
+	_, err := sc.Update(ctx, &secret, metaV1.UpdateOptions{FieldManager: "tokenGetter"})
+	errChk(err)
+}
+
+func createSecretGhcr(ctx context.Context, sc coreV1Types.SecretInterface, t, n, s string) {
+	secret := coreV1.Secret{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "apps/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      s,
+			Namespace: n,
+			Annotations: map[string]string{
+				"tekton.dev/docker-ghcr": "ghcr.io",
+			},
+		},
+		StringData: map[string]string{
+			".dockerconfigjson": fmt.Sprintf(`{"auths":{"ghcr.io":{"auth": "token:%s"}}}`, t),
+		},
+		Type: "kubernetes.io/dockerconfigjson",
+	}
+
+	_, err := sc.Create(ctx, &secret, metaV1.CreateOptions{FieldManager: "tokenGetter"})
+	errChk(err)
+}
+
 func main() {
 	flag.Parse()
 	// Init k8s in-cluster client
@@ -224,6 +271,13 @@ func main() {
 			fmt.Printf("Token was updated at %v\n", time.Now())
 		} else {
 			createSecret(ctx, secretsClient, aTkn, *namespace, *secretname+"-opaque")
+		}
+
+		if readSecret(ctx, secretsClient, *secretname+"-ghcr").Data != nil {
+			updateSecretGhcr(ctx, secretsClient, aTkn, *namespace, *secretname+"-ghcr")
+			fmt.Printf("Token was updated at %v\n", time.Now())
+		} else {
+			createSecretGhcr(ctx, secretsClient, aTkn, *namespace, *secretname+"-ghcr")
 		}
 
 		if readSecret(ctx, secretsClient, *secretname).Data != nil {
