@@ -1,4 +1,4 @@
-# gha-token-getter
+# github token getter
 
 A small application written in Golang built to ease the process of GitHub token retrieval
 
