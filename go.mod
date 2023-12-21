@@ -5,7 +5,8 @@ go 1.21
 toolchain go1.21.5
 
 require (
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/golang-jwt/jwt/v5 v5.2.0
+	github.com/pelletier/go-toml/v2 v2.1.1
 	k8s.io/api v0.29.0
 	k8s.io/apimachinery v0.29.0
 	k8s.io/client-go v0.29.0
