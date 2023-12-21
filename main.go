@@ -8,10 +8,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
-	"github.com/pelletier/go-toml/v2"
+	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -27,22 +28,27 @@ var (
 	secretsClient coreV1Types.SecretInterface
 )
 
+type general struct {
+	Namespace string `yaml:"namespace"`
+}
+
 type githubApp struct {
-	AppID      string `toml:"app_id"`
-	InstallID  string `toml:"install_id"`
-	AppPemPath string `toml:"app_pem_path"`
+	AppID      string `yaml:"app_id"`
+	AppPemPath string `yaml:"app_pem_path"`
+	InstallID  string `yaml:"install_id"`
 }
 
 type k8sSecret struct {
-	Name           string            `toml:"name"`
-	Namespace      string            `toml:"namespace"`
-	DockerConfAnno map[string]string `toml:"dockerconf_anno,omitempty"`
-	BasicaAuthAnno map[string]string `toml:"basicauth_anno,omitempty"`
+	Name        string            `yaml:"name"`
+	Type        string            `yaml:"type"`
+	Annotations map[string]string `yaml:"annotations,omitempty"`
+	DataStr     map[string]string `yaml:"data_string,omitempty"`
 }
 
 type config struct {
-	GithubApp githubApp `toml:"github_app"`
-	K8sSecret k8sSecret `toml:"k8s_secret"`
+	General    general     `yaml:"general"`
+	GithubApp  githubApp   `yaml:"github_app"`
+	K8sSecrets []k8sSecret `yaml:"k8s_secrets"`
 }
 
 func loadConfig(path string) (config, error) {
@@ -53,11 +59,25 @@ func loadConfig(path string) (config, error) {
 		return cfg, fmt.Errorf("error reading config file: %w", err)
 	}
 
-	if err := toml.Unmarshal(content, &cfg); err != nil {
+	if err := yaml.Unmarshal(content, &cfg); err != nil {
 		return cfg, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
 	return cfg, nil
+}
+
+func initK8SClient(ns string) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatalf("Error getting in-cluster config: %v", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("Error creating kubernetes client: %v", err)
+	}
+
+	secretsClient = clientset.CoreV1().Secrets(ns)
 }
 
 // Get github installation token
@@ -117,32 +137,14 @@ func getAccessToken(installID, token string) (string, error) {
 	return accessToken, nil
 }
 
-func initK8SClient(ns string) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		log.Fatalf("Error getting in-cluster config: %v", err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Fatalf("Error creating kubernetes client: %v", err)
-	}
-
-	secretsClient = clientset.CoreV1().Secrets(ns)
-}
-
-func handleSecrets(ctx context.Context, token string, ks k8sSecret) {
-	if _, err := manageSecret(ctx, ks.Name+"-opaque", ks.Namespace, "Opaque", map[string]string{"token": token}, ks.BasicaAuthAnno); err != nil {
-		log.Printf("Error managing opaque secret: %v", err)
-	}
-
-	if _, err := manageSecret(ctx, ks.Name, ks.Namespace, "kubernetes.io/basic-auth", map[string]string{"username": "token", "password": token}, ks.BasicaAuthAnno); err != nil {
-		log.Printf("Error managing basic auth secret: %v", err)
-	}
-
-	dockerConfigJSON := fmt.Sprintf(`{"auths":{"ghcr.io":{"auth": "token:%s"}}}`, token)
-	if _, err := manageSecret(ctx, ks.Name+"-ghcr", ks.Namespace, "kubernetes.io/dockerconfigjson", map[string]string{".dockerconfigjson": dockerConfigJSON}, ks.DockerConfAnno); err != nil {
-		log.Printf("Error managing GHCR secret: %v", err)
+func handleSecrets(ctx context.Context, token string, c config) {
+	for i, s := range c.K8sSecrets {
+		for k, v := range c.K8sSecrets[i].DataStr {
+			c.K8sSecrets[i].DataStr[k] = strings.ReplaceAll(v, ".GITHUB_TOKEN", token)
+		}
+		if _, err := manageSecret(ctx, s.Name, c.General.Namespace, s.Type, s.DataStr, s.Annotations); err != nil {
+			log.Printf("Error managing secret: %v", err)
+		}
 	}
 }
 
@@ -163,6 +165,7 @@ func manageSecret(ctx context.Context, name, namespace, secretType string, strin
 	}
 
 	if errors.IsNotFound(err) {
+		log.Default().Printf("Secret doesn't exist. New secret %s was created", name)
 		return secretsClient.Create(ctx, newSecret, metaV1.CreateOptions{})
 	}
 
@@ -176,7 +179,8 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	initK8SClient(cfg.K8sSecret.Namespace)
+	initK8SClient(cfg.General.Namespace)
+
 	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancelFn()
 
@@ -190,5 +194,5 @@ func main() {
 		log.Fatalf("Failed to get access token: %v", err)
 	}
 
-	handleSecrets(ctx, aToken, cfg.K8sSecret)
+	handleSecrets(ctx, aToken, cfg)
 }

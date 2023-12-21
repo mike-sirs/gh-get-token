@@ -1,0 +1,30 @@
+general:
+  namespace: "tekton"
+
+github_app:
+  app_id: "116232"
+  install_id: "17056547"
+  app_pem_path: "/etc/gha/privateKey.pem"
+
+k8s_secrets:
+  - name: "tekton-ghtest-pat-opaque"    
+    type: "Opaque"
+    annotations:
+      "tekton.dev/git-0": "https://github.com"
+    data_string:
+      token: .GITHUB_TOKEN
+
+  - name: "tekton-ghtest-pat-basic"
+    type: "kubernetes.io/basic-auth"
+    annotations:
+      "tekton.dev/git-0": "https://github.com"
+    data_string:
+      username: "token"
+      password: .GITHUB_TOKEN
+
+  - name: "tekton-ghtest-pat-dockerc"
+    type: "kubernetes.io/dockerconfigjson"
+    annotations:
+      "tekton.dev/docker-ghcr": "ghcr.io"
+    data_string:
+      .dockerconfigjson: {"auths":{"ghcr.io":{"auth": "token:.GITHUB_TOKEN"}}}
