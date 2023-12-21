@@ -1,0 +1,14 @@
+[github_app]
+app_id = "000000"
+install_id = "000000000"
+app_pem_path = "/etc/gha/privateKey.pem"
+
+[[k8s_secret]]
+name = "tekton-github-pat"
+namespace = "tekton"
+
+[k8s_secret.dockerconf_anno]
+"tekton.dev/docker-ghcr" = "ghcr.io"
+
+[k8s_secret.basicauth_anno]
+"tekton.dev/git-0" = "https://github.com"
