@@ -1,3 +1,5 @@
+# Deprecated in favor of https://github.com/external-secrets/external-secrets/blob/main/docs/snippets/generator-github.yaml
+
 # github token getter
 
 A small application written in Golang built to ease the process of GitHub token retrieval
